@@ -64,11 +64,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password,
       });
       
-      if (error) throw error;
-      
+      if (error) {
+        setError(error.message);
+        return;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
-      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -84,12 +85,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        setError(error.message);
+        return;
+      }
       
       navigate('/todos');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
-      throw err;
     } finally {
       setIsLoading(false);
     }

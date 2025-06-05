@@ -56,17 +56,14 @@ const LoginForm: React.FC = () => {
     e.preventDefault();
     
     if (validateForm()) {
-      try {
-        if (isSignUp) {
-          await signUp(formData.email, formData.password);
-          // Show success message and switch back to login
+      if (isSignUp) {
+        await signUp(formData.email, formData.password);
+        if (!authError) {
           alert('Sign up successful! Please check your email to verify your account.');
           setIsSignUp(false);
-        } else {
-          await login(formData.email, formData.password, formData.rememberMe);
         }
-      } catch (err) {
-        // Error is handled by AuthContext
+      } else {
+        await login(formData.email, formData.password, formData.rememberMe);
       }
     }
   };
