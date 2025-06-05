@@ -18,7 +18,8 @@ const LoginForm: React.FC = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Partial<FormData>>({});
-  const { login, isLoading, error: authError } = useAuth();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const { login, signUp, isLoading, error: authError } = useAuth();
 
   const validateForm = (): boolean => {
     const newErrors: Partial<FormData> = {};
@@ -46,7 +47,6 @@ const LoginForm: React.FC = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
 
-    // Clear error when user starts typing
     if (errors[name as keyof typeof errors]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
     }
@@ -56,8 +56,24 @@ const LoginForm: React.FC = () => {
     e.preventDefault();
     
     if (validateForm()) {
-      await login(formData.email, formData.password, formData.rememberMe);
+      try {
+        if (isSignUp) {
+          await signUp(formData.email, formData.password);
+          // Show success message and switch back to login
+          alert('Sign up successful! Please check your email to verify your account.');
+          setIsSignUp(false);
+        } else {
+          await login(formData.email, formData.password, formData.rememberMe);
+        }
+      } catch (err) {
+        // Error is handled by AuthContext
+      }
     }
+  };
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setErrors({});
   };
 
   return (
@@ -86,7 +102,7 @@ const LoginForm: React.FC = () => {
             value={formData.password}
             onChange={handleChange}
             error={errors.password}
-            autoComplete="current-password"
+            autoComplete={isSignUp ? 'new-password' : 'current-password'}
             required
           />
           <button
@@ -104,26 +120,28 @@ const LoginForm: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <input
-            id="rememberMe"
-            name="rememberMe"
-            type="checkbox"
-            checked={formData.rememberMe}
-            onChange={handleChange}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 transition-colors"
-          />
-          <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-            Remember me
-          </label>
+      {!isSignUp && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <input
+              id="rememberMe"
+              name="rememberMe"
+              type="checkbox"
+              checked={formData.rememberMe}
+              onChange={handleChange}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 transition-colors"
+            />
+            <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+              Remember me
+            </label>
+          </div>
+          <div className="text-sm">
+            <a href="#" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+              Forgot password?
+            </a>
+          </div>
         </div>
-        <div className="text-sm">
-          <a href="#" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-            Forgot password?
-          </a>
-        </div>
-      </div>
+      )}
 
       {authError && (
         <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
@@ -135,18 +153,22 @@ const LoginForm: React.FC = () => {
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Signing in...
+            {isSignUp ? 'Creating account...' : 'Signing in...'}
           </>
         ) : (
-          'Sign in'
+          isSignUp ? 'Create Account' : 'Sign in'
         )}
       </Button>
 
       <div className="text-center text-sm text-gray-600">
-        Don't have an account?{' '}
-        <a href="#" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-          Sign up
-        </a>
+        {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+        <button
+          type="button"
+          onClick={toggleMode}
+          className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+        >
+          {isSignUp ? 'Sign in' : 'Sign up'}
+        </button>
       </div>
     </form>
   );
