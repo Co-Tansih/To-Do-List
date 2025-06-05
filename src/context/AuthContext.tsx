@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -7,13 +8,13 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string, rememberMe: boolean) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
 }
 
 interface User {
   id: string;
   email: string;
-  name: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,53 +37,72 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const login = async (email: string, password: string, rememberMe: boolean): Promise<void> => {
+  React.useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signUp = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     setError(null);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
       
-      if (email === 'chaudharitanish506@gmail.com' && password === 'admin123') {
-        const mockUser: User = {
-          id: '1',
-          email,
-          name: email.split('@')[0],
-        };
-        
-        setUser(mockUser);
-        
-        if (rememberMe) {
-          localStorage.setItem('user', JSON.stringify(mockUser));
-        }
-        
-        navigate('/todos');
-      } else {
-        throw new Error('Invalid credentials');
-      }
+      if (error) throw error;
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      setError(err instanceof Error ? err.message : 'An error occurred during sign up');
+      throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = (): void => {
-    setUser(null);
-    localStorage.removeItem('user');
-    navigate('/');
+  const login = async (email: string, password: string, rememberMe: boolean): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) throw error;
+      
+      navigate('/todos');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid credentials');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  React.useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (err) {
-        localStorage.removeItem('user');
-      }
+  const logout = async (): Promise<void> => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error logging out:', error.message);
     }
-  }, []);
+    setUser(null);
+    navigate('/');
+  };
 
   const value: AuthContextType = {
     user,
@@ -91,6 +111,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     error,
     login,
     logout,
+    signUp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
