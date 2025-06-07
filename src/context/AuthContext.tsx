@@ -73,16 +73,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   React.useEffect(() => {
     // Check for existing session on mount
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const userData = {
-          id: session.user.id,
-          email: session.user.email!,
-        };
-        
-        // Ensure profile exists before setting user
-        await ensureProfileExists(userData.id, userData.email);
-        setUser(userData);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userData = {
+            id: session.user.id,
+            email: session.user.email!,
+          };
+          
+          // Ensure profile exists before setting user
+          await ensureProfileExists(userData.id, userData.email);
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
       }
     };
 
@@ -90,16 +94,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        const userData = {
-          id: session.user.id,
-          email: session.user.email!,
-        };
-        
-        // Ensure profile exists before setting user
-        await ensureProfileExists(userData.id, userData.email);
-        setUser(userData);
-      } else {
+      try {
+        if (session?.user) {
+          const userData = {
+            id: session.user.id,
+            email: session.user.email!,
+          };
+          
+          // Ensure profile exists before setting user
+          await ensureProfileExists(userData.id, userData.email);
+          setUser(userData);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error in auth state change:', error);
         setUser(null);
       }
     });
@@ -114,14 +123,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      // Sign up with email confirmation disabled
-      const { data, error } = await supabase.auth.signUp({
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Sign up timed out')), 10000); // 10 second timeout
+      });
+
+      // Race between signup and timeout
+      const signupPromise = supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: undefined, // Disable email confirmation
         }
       });
+
+      const { data, error } = await Promise.race([signupPromise, timeoutPromise]) as any;
       
       if (error) {
         setError(error.message);
@@ -142,7 +158,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setError('Please check your email to confirm your account before signing in.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during sign up');
+      if (err instanceof Error && err.message === 'Sign up timed out') {
+        setError('Sign up is taking too long. Please try again or check your internet connection.');
+      } else {
+        setError(err instanceof Error ? err.message : 'An error occurred during sign up');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -153,10 +173,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Sign in timed out')), 10000); // 10 second timeout
+      });
+
+      // Race between login and timeout
+      const loginPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as any;
       
       if (error) {
         // Provide more specific error messages
@@ -178,21 +206,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email: data.user.email!,
         });
         navigate('/todos');
+      } else {
+        setError('Authentication failed. Please try again.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during sign in');
+      if (err instanceof Error && err.message === 'Sign in timed out') {
+        setError('Sign in is taking too long. Please try again or check your internet connection.');
+      } else {
+        setError(err instanceof Error ? err.message : 'An error occurred during sign in');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async (): Promise<void> => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error logging out:', error.message);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error logging out:', error.message);
+      }
+      setUser(null);
+      navigate('/');
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Force logout even if there's an error
+      setUser(null);
+      navigate('/');
     }
-    setUser(null);
-    navigate('/');
   };
 
   const value: AuthContextType = {
