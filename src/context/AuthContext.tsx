@@ -71,6 +71,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   React.useEffect(() => {
+    // Check for existing session on mount
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const userData = {
+          id: session.user.id,
+          email: session.user.email!,
+        };
+        
+        // Ensure profile exists before setting user
+        await ensureProfileExists(userData.id, userData.email);
+        setUser(userData);
+      }
+    };
+
+    checkSession();
+
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         const userData = {
@@ -80,7 +98,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Ensure profile exists before setting user
         await ensureProfileExists(userData.id, userData.email);
-        
         setUser(userData);
       } else {
         setUser(null);
@@ -97,9 +114,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
+      // Sign up with email confirmation disabled
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: undefined, // Disable email confirmation
+        }
       });
       
       if (error) {
@@ -107,9 +128,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // If user is created immediately (no email confirmation), ensure profile exists
-      if (data.user) {
+      // Check if user was created successfully
+      if (data.user && data.session) {
+        // User is immediately signed in (email confirmation disabled)
         await ensureProfileExists(data.user.id, data.user.email!);
+        setUser({
+          id: data.user.id,
+          email: data.user.email!,
+        });
+        navigate('/todos');
+      } else if (data.user && !data.session) {
+        // Email confirmation is required
+        setError('Please check your email to confirm your account before signing in.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
@@ -129,18 +159,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) {
-        setError(error.message);
+        // Provide more specific error messages
+        if (error.message.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please check your credentials and try again.');
+        } else if (error.message.includes('Email not confirmed')) {
+          setError('Please check your email and confirm your account before signing in.');
+        } else {
+          setError(error.message);
+        }
         return;
       }
 
       // Ensure profile exists after successful login
-      if (data.user) {
+      if (data.user && data.session) {
         await ensureProfileExists(data.user.id, data.user.email!);
+        setUser({
+          id: data.user.id,
+          email: data.user.email!,
+        });
+        navigate('/todos');
       }
-      
-      navigate('/todos');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid credentials');
+      setError(err instanceof Error ? err.message : 'An error occurred during sign in');
     } finally {
       setIsLoading(false);
     }
