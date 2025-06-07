@@ -133,7 +133,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         password,
         options: {
-          emailRedirectTo: undefined, // Disable email confirmation
+          emailRedirectTo: undefined,
         }
       });
 
@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Check if user was created successfully
       if (data.user && data.session) {
-        // User is immediately signed in (email confirmation disabled)
+        // User is immediately signed in (email confirmation disabled in Supabase settings)
         await ensureProfileExists(data.user.id, data.user.email!);
         setUser({
           id: data.user.id,
@@ -154,8 +154,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
         navigate('/todos');
       } else if (data.user && !data.session) {
-        // Email confirmation is required
-        setError('Please check your email to confirm your account before signing in.');
+        // Email confirmation is required - user needs to check their email
+        setError('Account created successfully! Please check your email (including spam folder) and click the confirmation link before signing in.');
       }
     } catch (err) {
       if (err instanceof Error && err.message === 'Sign up timed out') {
@@ -190,8 +190,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Provide more specific error messages
         if (error.message.includes('Invalid login credentials')) {
           setError('Invalid email or password. Please check your credentials and try again.');
-        } else if (error.message.includes('Email not confirmed')) {
-          setError('Please check your email and confirm your account before signing in.');
+        } else if (error.message.includes('Email not confirmed') || error.code === 'email_not_confirmed') {
+          setError('Please check your email (including spam folder) and click the confirmation link to verify your account before signing in.');
         } else {
           setError(error.message);
         }
