@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Loader2, Mail, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Input from './ui/Input';
 import Button from './ui/Button';
@@ -32,8 +32,8 @@ const LoginForm: React.FC = () => {
     
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
     
     setErrors(newErrors);
@@ -68,13 +68,6 @@ const LoginForm: React.FC = () => {
     setIsSignUp(!isSignUp);
     setErrors({});
   };
-
-  // Check if the error is related to email confirmation
-  const isEmailConfirmationError = authError && (
-    authError.includes('Email not confirmed') || 
-    authError.includes('check your email') ||
-    authError.includes('confirmation link')
-  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -135,48 +128,12 @@ const LoginForm: React.FC = () => {
               Remember me
             </label>
           </div>
-          <div className="text-sm">
-            <a href="#" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-              Forgot password?
-            </a>
-          </div>
         </div>
       )}
 
       {authError && (
-        <div className={`p-4 rounded-lg border ${
-          isEmailConfirmationError 
-            ? 'bg-amber-50 border-amber-200 text-amber-800' 
-            : 'bg-red-50 border-red-200 text-red-600'
-        }`}>
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              {isEmailConfirmationError ? (
-                <Mail className="h-5 w-5 text-amber-600" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-red-500" />
-              )}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium mb-1">
-                {isEmailConfirmationError ? 'Email Confirmation Required' : 'Authentication Error'}
-              </h3>
-              <p className="text-sm">
-                {authError}
-              </p>
-              {isEmailConfirmationError && (
-                <div className="mt-3 text-sm">
-                  <p className="font-medium mb-2">What to do next:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>Check your email inbox for a confirmation message</li>
-                    <li>Look in your spam/junk folder if you don't see it</li>
-                    <li>Click the confirmation link in the email</li>
-                    <li>Return here and try signing in again</li>
-                  </ol>
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-md text-sm">
+          {authError}
         </div>
       )}
 

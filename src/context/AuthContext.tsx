@@ -39,31 +39,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const ensureProfileExists = async (userId: string, email: string) => {
     try {
-      // Check if profile already exists
-      const { data: existingProfile, error: fetchError } = await supabase
+      const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', userId)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // PGRST116 is "not found" error, which is expected if profile doesn't exist
-        console.error('Error checking profile:', fetchError);
-        return;
-      }
-
-      // If profile doesn't exist, create it
       if (!existingProfile) {
-        const { error: insertError } = await supabase
+        await supabase
           .from('profiles')
           .insert({
             id: userId,
             email: email,
           });
-
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-        }
       }
     } catch (err) {
       console.error('Error ensuring profile exists:', err);
@@ -71,7 +59,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   React.useEffect(() => {
-    // Check for existing session on mount
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -81,7 +68,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             email: session.user.email!,
           };
           
-          // Ensure profile exists before setting user
           await ensureProfileExists(userData.id, userData.email);
           setUser(userData);
         }
@@ -92,23 +78,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     checkSession();
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        if (session?.user) {
-          const userData = {
-            id: session.user.id,
-            email: session.user.email!,
-          };
-          
-          // Ensure profile exists before setting user
-          await ensureProfileExists(userData.id, userData.email);
-          setUser(userData);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Error in auth state change:', error);
+      if (session?.user) {
+        const userData = {
+          id: session.user.id,
+          email: session.user.email!,
+        };
+        
+        await ensureProfileExists(userData.id, userData.email);
+        setUser(userData);
+      } else {
         setUser(null);
       }
     });
@@ -123,46 +102,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Sign up timed out')), 10000); // 10 second timeout
-      });
-
-      // Race between signup and timeout
-      const signupPromise = supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: undefined,
         }
       });
-
-      const { data, error } = await Promise.race([signupPromise, timeoutPromise]) as any;
       
       if (error) {
         setError(error.message);
         return;
       }
 
-      // Check if user was created successfully
-      if (data.user && data.session) {
-        // User is immediately signed in (email confirmation disabled in Supabase settings)
-        await ensureProfileExists(data.user.id, data.user.email!);
-        setUser({
-          id: data.user.id,
-          email: data.user.email!,
-        });
-        navigate('/todos');
-      } else if (data.user && !data.session) {
-        // Email confirmation is required - user needs to check their email
-        setError('Account created successfully! Please check your email (including spam folder) and click the confirmation link before signing in.');
+      if (data.user) {
+        if (data.session) {
+          // User is immediately signed in (email confirmation disabled)
+          await ensureProfileExists(data.user.id, data.user.email!);
+          setUser({
+            id: data.user.id,
+            email: data.user.email!,
+          });
+          navigate('/todos');
+        } else {
+          // Email confirmation required
+          setError('Account created! Please check your email and click the confirmation link, then try signing in.');
+        }
       }
     } catch (err) {
-      if (err instanceof Error && err.message === 'Sign up timed out') {
-        setError('Sign up is taking too long. Please try again or check your internet connection.');
-      } else {
-        setError(err instanceof Error ? err.message : 'An error occurred during sign up');
-      }
+      setError(err instanceof Error ? err.message : 'Sign up failed');
     } finally {
       setIsLoading(false);
     }
@@ -173,32 +141,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Sign in timed out')), 10000); // 10 second timeout
-      });
-
-      // Race between login and timeout
-      const loginPromise = supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
-      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as any;
       
       if (error) {
-        // Provide more specific error messages
         if (error.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password. Please check your credentials and try again.');
-        } else if (error.message.includes('Email not confirmed') || error.code === 'email_not_confirmed') {
-          setError('Please check your email (including spam folder) and click the confirmation link to verify your account before signing in.');
+          setError('Invalid email or password');
+        } else if (error.message.includes('Email not confirmed')) {
+          setError('Please check your email and click the confirmation link first');
         } else {
           setError(error.message);
         }
         return;
       }
 
-      // Ensure profile exists after successful login
       if (data.user && data.session) {
         await ensureProfileExists(data.user.id, data.user.email!);
         setUser({
@@ -206,34 +164,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email: data.user.email!,
         });
         navigate('/todos');
-      } else {
-        setError('Authentication failed. Please try again.');
       }
     } catch (err) {
-      if (err instanceof Error && err.message === 'Sign in timed out') {
-        setError('Sign in is taking too long. Please try again or check your internet connection.');
-      } else {
-        setError(err instanceof Error ? err.message : 'An error occurred during sign in');
-      }
+      setError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async (): Promise<void> => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error logging out:', error.message);
-      }
-      setUser(null);
-      navigate('/');
-    } catch (err) {
-      console.error('Logout error:', err);
-      // Force logout even if there's an error
-      setUser(null);
-      navigate('/');
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    navigate('/');
   };
 
   const value: AuthContextType = {
