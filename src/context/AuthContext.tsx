@@ -37,13 +37,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const ensureProfileExists = async (userId: string, email: string) => {
+    try {
+      // Check if profile already exists
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected if profile doesn't exist
+        console.error('Error checking profile:', fetchError);
+        return;
+      }
+
+      // If profile doesn't exist, create it
+      if (!existingProfile) {
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: email,
+          });
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        }
+      }
+    } catch (err) {
+      console.error('Error ensuring profile exists:', err);
+    }
+  };
+
   React.useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        setUser({
+        const userData = {
           id: session.user.id,
           email: session.user.email!,
-        });
+        };
+        
+        // Ensure profile exists before setting user
+        await ensureProfileExists(userData.id, userData.email);
+        
+        setUser(userData);
       } else {
         setUser(null);
       }
@@ -59,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
@@ -67,6 +105,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         setError(error.message);
         return;
+      }
+
+      // If user is created immediately (no email confirmation), ensure profile exists
+      if (data.user) {
+        await ensureProfileExists(data.user.id, data.user.email!);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
@@ -80,7 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -88,6 +131,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         setError(error.message);
         return;
+      }
+
+      // Ensure profile exists after successful login
+      if (data.user) {
+        await ensureProfileExists(data.user.id, data.user.email!);
       }
       
       navigate('/todos');
