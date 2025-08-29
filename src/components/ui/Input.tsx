@@ -13,20 +13,21 @@ const Input: React.FC<InputProps> = ({
   ...props 
 }) => {
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <label 
         htmlFor={id} 
-        className="block text-sm font-medium text-gray-700"
+        className="block text-sm font-semibold text-gray-200"
       >
         {label}
       </label>
       <input
         id={id}
         className={`
-          block w-full rounded-md border-0 py-2 px-3 
+          block w-full rounded-xl border-0 py-3 px-4 
+          bg-white/10 backdrop-blur-sm
           ${error 
-            ? 'text-red-900 ring-1 ring-inset ring-red-300 placeholder:text-red-300 focus:ring-2 focus:ring-inset focus:ring-red-500' 
-            : 'text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
+            ? 'text-red-300 ring-2 ring-red-500/50 placeholder:text-red-400/70 focus:ring-red-400' 
+            : 'text-white shadow-sm ring-1 ring-white/20 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500/50 hover:ring-white/30'
           }
           transition-all duration-200 ease-in-out
           ${className}
@@ -36,7 +37,8 @@ const Input: React.FC<InputProps> = ({
         {...props}
       />
       {error && (
-        <p className="text-sm text-red-600" id={`${id}-error`}>
+        <p className="text-sm text-red-300 flex items-center gap-2" id={`${id}-error`}>
+          <div className="w-1 h-1 bg-red-400 rounded-full"></div>
           {error}
         </p>
       )}
