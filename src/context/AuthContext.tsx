@@ -105,17 +105,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: undefined,
-        }
       });
       
       if (error) {
-        if (error.message.includes('User already registered') || error.message.includes('user_already_exists')) {
-          setError('This email is already registered. Please sign in instead.');
-        } else {
-          setError(error.message);
-        }
+        setError(error.message);
         return;
       }
 
@@ -151,13 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password');
-        } else if (error.message.includes('Email not confirmed')) {
-          setError('Please check your email and click the confirmation link first');
-        } else {
-          setError(error.message);
-        }
+        setError(error.message);
         return;
       }
 
