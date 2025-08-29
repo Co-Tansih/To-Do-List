@@ -111,7 +111,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) {
-        setError(error.message);
+        if (error.message.includes('User already registered') || error.message.includes('user_already_exists')) {
+          setError('This email is already registered. Please sign in instead.');
+        } else {
+          setError(error.message);
+        }
         return;
       }
 
