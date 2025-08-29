@@ -37,39 +37,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const ensureProfileExists = async (userId: string, email: string) => {
-    try {
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', userId)
-        .single();
-
-      if (!existingProfile) {
-        await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            email: email,
-          });
-      }
-    } catch (err) {
-      console.error('Error ensuring profile exists:', err);
-    }
-  };
-
   React.useEffect(() => {
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          const userData = {
+          setUser({
             id: session.user.id,
             email: session.user.email!,
-          };
-          
-          await ensureProfileExists(userData.id, userData.email);
-          setUser(userData);
+          });
         }
       } catch (error) {
         console.error('Error checking session:', error);
@@ -78,15 +54,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        const userData = {
+        setUser({
           id: session.user.id,
           email: session.user.email!,
-        };
-        
-        await ensureProfileExists(userData.id, userData.email);
-        setUser(userData);
+        });
       } else {
         setUser(null);
       }
@@ -112,19 +85,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      if (data.user) {
-        if (data.session) {
-          // User is immediately signed in (email confirmation disabled)
-          await ensureProfileExists(data.user.id, data.user.email!);
-          setUser({
-            id: data.user.id,
-            email: data.user.email!,
-          });
-          navigate('/todos');
-        } else {
-          // Email confirmation required
-          setError('Account created! Please check your email and click the confirmation link, then try signing in.');
-        }
+      if (data.user && data.session) {
+        setUser({
+          id: data.user.id,
+          email: data.user.email!,
+        });
+        navigate('/todos');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
@@ -149,7 +115,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (data.user && data.session) {
-        await ensureProfileExists(data.user.id, data.user.email!);
         setUser({
           id: data.user.id,
           email: data.user.email!,
